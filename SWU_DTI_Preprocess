@@ -1,0 +1,75 @@
+% clear all;
+% 该代码的作用是 先对 dwi数据做初步的处理，包括：
+% 1）对多个B0图像求平均，得到一个平均的B0图
+% 2）将bval和bvec文档 整合到一起，得到一个Nx4的矩阵保存下来
+%%
+% 这里输入所有被试所在的目录，比如all_data文件夹下有被试文件夹，被试文件夹下有dwi文件夹，dwi文件夹下是dwi数据
+clc;clear;
+rootfolder = 'H:\毕业论文\所有数据\研究三\MRI\DTI\HC\RAW\DTI';
+
+%%
+subs = dir(rootfolder);
+subs(1:2) = [];
+
+% 检测数据，是否有错误
+for i=1:length(subs)
+    Name = subs(i).name;
+    bval = dir([rootfolder,filesep,Name,filesep,'DTI',filesep,'*.bval']);
+    bvec = dir([rootfolder,filesep,Name,filesep,'DTI',filesep,'*.bvec']);
+    Img = dir([rootfolder,filesep,Name,filesep,'DTI',filesep,'*.nii.gz']);
+    v  = spm_vol([rootfolder,filesep,Name,filesep,'DTI',filesep,Img.name]);
+    bval = load([rootfolder,filesep,Name,filesep,'DTI',filesep,bval.name]); 
+    bvec = load([rootfolder,filesep,Name,filesep,'DTI',filesep,bvec.name]); 
+    if length(bval)~= size(bvec,2) || length(bval)~=length(v)
+        error('dwi data of subject - %s is not correct',Name);
+    end
+end
+%%我自己的代码，求了b0平均图像，然后将b=2000的删除，最终剩下65个图像，第一张为b0，剩下64为b1000
+for i=1:length(subs)
+    Name = subs(i).name;
+    fprintf('processing subjid: %s\n',Name);
+    bval = dir([rootfolder,filesep,Name,filesep,'DTI',filesep,'*.bval']);
+    bvec = dir([rootfolder,filesep,Name,filesep,'DTI',filesep,'*.bvec']);
+    Img = dir([rootfolder,filesep,Name,filesep,'DTI',filesep,'*.nii.gz']);
+    bval = load([rootfolder,filesep,Name,filesep,'DTI',filesep,bval.name]); if size(bval,1)==1; bval=bval';end
+    bvec = load([rootfolder,filesep,Name,filesep,'DTI',filesep,bvec.name]); if size(bvec,1)==3; bvec=bvec';end
+    v  = spm_vol([rootfolder,filesep,Name,filesep,'DTI',filesep,Img.name]);
+    data = spm_read_vols(v);
+    Indzero = find(bval == 0);
+    bval(Indzero) = []; 
+    bval = [0;bval];
+    bvec(Indzero,:) = []; 
+    bvec = [0 0 0;bvec];
+    grad = [bvec, bval];
+    B0 = nanmean(data(:,:,:,Indzero),4);
+    data(:,:,:,Indzero) = [];
+    data = cat(4,B0,data);
+%     save([rootfolder,filesep,Name,filesep,'DTI1',filesep,'grad_allb.txt'],'grad','-ascii');
+    Ind2000 = find(grad(:,4)==2000);
+    bval(Ind2000,:) = [];
+    bvec(Ind2000,:) = [];
+    data(:,:,:,Ind2000) = [];
+    mkdir(strcat('H:\毕业论文\所有数据\研究三\MRI\DTI\HC\',subs(i).name,'\DTI'));
+%     rmdir(strcat('G:\DTI\SWU\Raw_Data\',subs(i).name,'\DTI1'), 's');
+    bval = bval';
+    bvec = bvec';
+    save([rootfolder,filesep,Name,filesep,'DTI',filesep,'1000.bval'],'bval','-ascii');%生成删除b=2000后的bval文件
+    save([rootfolder,filesep,Name,filesep,'DTI',filesep,'1000.bvec'],'bvec','-ascii');%只提取b=1000的梯度，生成新的bvec
+    y_Write(data,v(1),[rootfolder,filesep,Name,filesep,'DTI',filesep,subs(i).name])
+%     delete([rootfolder,filesep,Name,filesep,'DTI1',filesep,Img.name]);
+end
+
+
+clc;clear
+f = dir('G:\失眠项目核磁备份\校内核磁+行为汇总\按被试编号汇总\fMRI')%鏀炬墍鏈夎璇曞奖鍍忔暟鎹殑鏂囦欢澶癸紝璇ユ枃浠朵笅鍙湁姣忎釜琚瘯鐨勬枃浠跺す
+f(1:2,:)=[]
+for i = 1:length(f)
+    f1 = dir(strcat('G:\失眠项目核磁备份\校内核磁+行为汇总\按被试编号汇总\fMRI\',f(i).name,'\'))%鑾峰彇姣忎釜琚瘯鐨勪簩绾ф枃浠跺す璺緞
+    f2 = strcat(strcat('G:\失眠项目核磁备份\校内核磁+行为汇总\按被试编号汇总\fMRI\',f(i).name,'\'),f1(3).name,'\')%鑾峰彇姣忎釜琚瘯鐨勪笁绾ф枃浠跺す璺緞锛堣璺緞涓嬪簲璇ュ瓨鍌ㄤ簡鍚勬ā鎬佺殑鏂囦欢澶癸級
+    f3 = strcat(strcat('G:\失眠项目核磁备份\校内核磁+行为汇总\按被试编号汇总\fMRI\',f(i).name,'\'),f1(3).name,'\',f2(3).name,'\')%鑾峰彇姣忎釜琚瘯鐨勪笁绾ф枃浠跺す璺緞锛堣璺緞涓嬪簲璇ュ瓨鍌ㄤ簡鍚勬ā鎬佺殑鏂囦欢澶癸級
+    cd (f3)%杩涘叆鍒拌璇曞眰闈紝鍚勬ā鎬佹枃浠跺瓨鍌ㄧ殑璺緞涓?
+    f4 = dir('*DIFF_HARDI*')%鑾峰彇闈欐伅鎬佸瓨鍌ㄧ殑鏂囦欢澶瑰悕瀛楋紝涓よ竟鐨?*浠ｈ〃閫氶厤绗︼紝鍗冲鎵炬枃浠朵腑鍖呭惈杩欎簺瀛楃鐨勬枃浠跺す鍏ㄥ悕
+%     f4 = dir('*T1_MPRAGE*')
+    output_file_dti = strcat('F:\PHD_Raw_MRI_Data\DTI_Porcess\Post\','sub',f(i).name(9:11),'\DTI1\')%瀹
+    dicm2nii(f3(1).name, output_file_dti);
+end
