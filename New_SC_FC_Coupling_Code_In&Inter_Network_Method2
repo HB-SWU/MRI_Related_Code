@@ -1,0 +1,268 @@
+%whole brain and ROI 所有分析中，均去掉自连接，和重复的边，以及SC为0的边
+clc;clear;
+load SC_FC_Coupling_Prac_Data.mat
+load BNAYeo.mat
+HC = 1:32;
+ISSD = 33:56;
+
+VN = BNAYeo(find(BNAYeo(:,2)==1),1);
+SMN = BNAYeo(find(BNAYeo(:,2)==2),1);
+DAN = BNAYeo(find(BNAYeo(:,2)==3),1);
+VAN = BNAYeo(find(BNAYeo(:,2)==4),1);
+LN = BNAYeo(find(BNAYeo(:,2)==5),1);
+FPN = BNAYeo(find(BNAYeo(:,2)==6),1);
+DMN = BNAYeo(find(BNAYeo(:,2)==7),1);
+SBN = BNAYeo(find(BNAYeo(:,2)==0),1);
+FBN = [1:68,219:230]';
+network = {VN,SMN,DAN,VAN,LN,FPN,DMN,SBN,FBN};
+
+ for i = 1:size(FC,1)
+   for  j = 1:size(FC,2)
+      FC_data = squeeze(FC(i,:,j))';
+      FC_data(j)=[];% delete self FC
+      SC_data = squeeze(SC(i,:,j))';
+      SC_data(j)=[];% delete self SC
+      mask = find(SC_data ==0);
+      SC_data(mask)=[];
+      FC_data(mask)=[];
+      if length(SC_data)>1
+        SC_data = zscore(SC_data);
+        SFC_Region_individual(i,j) = corr(FC_data,SC_data);%ROI_SFC, Dim: subject*ROI
+      else
+        SFC_Region_individual(i,j) = 0;
+      end
+   end
+  FC_data = squeeze(FC(i,:,:));
+  FC_data = tril(FC_data,-1);
+  SC_data = squeeze(SC(i,:,:));
+  SC_data = tril(SC_data,-1);
+  FC_data = reshape(FC_data,1,246*246)';
+  SC_data = reshape(SC_data,1,246*246)';
+  index = find(FC_data==0);
+  FC_data(index)=[]; 
+  SC_data(index)=[]; 
+  mask = find(SC_data ==0);
+  SC_data(mask)=[];
+  FC_data(mask)=[];
+  SC_data = zscore(SC_data);
+  SFC_individual(i,1) = corr(FC_data,SC_data);%individual_SFC, whole_brain_SFC, Dim: Subject，拉出所在的边进行计算
+ end
+ 
+% SFC_Region_individual_1 = SFC_Region_individual;
+% SFC_Region_individual_1(isnan(SFC_Region_individual_1)) = 0;
+
+
+dummy= SFC_individual;
+dummy(20,:)=[];
+group(20,:)=[];
+site(20,:)=[];
+sex(20,:)=[];
+age(20,:)=[];
+
+for region=1:size(dummy,2);
+  tbl = table(age,sex,group,site,dummy(:,region));
+  tbl.sex = categorical(tbl.sex);
+  tbl.site = categorical(tbl.site);
+  tbl.group = categorical(tbl.group);
+  lm = fitlm(tbl,'Var5~age*sex*site+group');
+  mytstat_246(region)=lm.Coefficients{4,3};
+  mypval_246(region)=lm.Coefficients{4,4};
+end
+% 
+% for region=1:size(dummy,2);
+%   tbl = table(age,sex,group,dummy(:,region));
+%   tbl.sex = categorical(tbl.sex);
+% %   tbl.site = categorical(tbl.site);
+%   tbl.group = categorical(tbl.group);
+%   lm = fitlm(tbl,'Var4~age*sex+group');
+%   mytstat_246(region)=lm.Coefficients{4,3};
+%   mypval_246(region)=lm.Coefficients{4,4};
+% end
+
+mytstat_246=transpose(mytstat_246);
+mypval_246=transpose(mypval_246);
+pvalue_fdr_246 = mafdr(mypval_246,'BHFDR',1); % FDR corrected p-values
+sigregs_246=find(pvalue_fdr_246<0.05) % list of the statistically significant regions
+
+Sig_Roi_Index = find(mypval_246<0.05);
+Sig_t_value = mytstat_246(Sig_Roi_Index,1);
+Sig_p_value = mypval_246(Sig_Roi_Index);
+network_index =BNAYeo(Sig_Roi_Index,2);
+
+Sig_Roi_Index_fdr = find(pvalue_fdr_246<0.05);
+Sig_t_value_fdr = mytstat_246(Sig_Roi_Index_fdr,1);
+
+%% In-network
+
+clc;clear;
+load SC_FC_Coupling_Prac_Data.mat
+load BNAYeo.mat
+% HC = 1:32;
+% ISSD = 33:56;
+
+VN = BNAYeo(find(BNAYeo(:,2)==1),1);
+SMN = BNAYeo(find(BNAYeo(:,2)==2),1);
+DAN = BNAYeo(find(BNAYeo(:,2)==3),1);
+VAN = BNAYeo(find(BNAYeo(:,2)==4),1);
+LN = BNAYeo(find(BNAYeo(:,2)==5),1);
+FPN = BNAYeo(find(BNAYeo(:,2)==6),1);
+DMN = BNAYeo(find(BNAYeo(:,2)==7),1);
+SBN = BNAYeo(find(BNAYeo(:,2)==0),1);
+FBN = [1:68,219:246]';
+
+network = {VN,SMN,DAN,VAN,LN,FPN,DMN,SBN,FBN};
+
+for i = 1:size(FC,1);
+ for j = 1:9;
+     FC_data  = squeeze(FC(i,network{1,j},network{1,j}));
+     FC_data = tril(FC_data,-1);
+     FC_data = reshape(FC_data,1,length(network{1,j})*length(network{1,j}));
+     index = find(FC_data==0);
+     FC_data(index)=[]; 
+%      FC_data = reshape(FC_data,(length(network{1,j})-1),length(network{1,j}));
+     SC_data = squeeze(SC(i,network{1,j},network{1,j}));
+     SC_data = tril(SC_data,-1);
+     SC_data = reshape(SC_data,1,length(network{1,j})*length(network{1,j}));
+     SC_data(index)=[];
+     mask = find(SC_data ==0);
+     SC_data(mask)=[];
+     FC_data(mask)=[];
+     if length(SC_data)>1
+          SC_data = zscore(SC_data);
+%      SC_data = reshape(SC_data,(length(network{1,j})-1),length(network{1,j}));
+          In_Net_SC_FC(i,j) = corr(FC_data',SC_data');
+     else
+         In_Net_SC_FC(i,j) = 0;
+     end
+ end
+ end
+
+ 
+ 
+ dummy=In_Net_SC_FC;
+ dummy(20,:)=[];
+group(20,:)=[];
+site(20,:)=[];
+sex(20,:)=[];
+age(20,:)=[];
+
+for region=1:size(dummy,2);
+  tbl = table(age,sex,group,site,dummy(:,region));
+  tbl.sex = categorical(tbl.sex);
+  tbl.site = categorical(tbl.site);
+  tbl.group = categorical(tbl.group);
+  lm = fitlm(tbl,'Var5~age*sex*site+group');
+  mytstat_246(region)=lm.Coefficients{4,3};
+  mypval_246(region)=lm.Coefficients{4,4};
+end
+
+% for region=1:size(dummy,2);
+%   tbl = table(age,sex,group,dummy(:,region));
+%   tbl.sex = categorical(tbl.sex);
+% %   tbl.site = categorical(tbl.site);
+%   tbl.group = categorical(tbl.group);
+%   lm = fitlm(tbl,'Var4~age*sex+group');
+%   mytstat_246(region)=lm.Coefficients{4,3};
+%   mypval_246(region)=lm.Coefficients{4,4};
+% end
+
+mytstat_246=transpose(mytstat_246);
+mypval_246=transpose(mypval_246);
+pvalue_fdr_246 = mafdr(mypval_246,'BHFDR',1); % FDR corrected p-values
+sigregs_246=find(pvalue_fdr_246<0.05) % list of the statistically significant regions
+
+Sig_Roi_Index = find(mypval_246<0.05);
+Sig_t_value = mytstat_246(Sig_Roi_Index,1);
+
+
+ %% Inter-network
+clc;clear;
+load SC_FC_Coupling_Prac_Data.mat
+load BNAYeo.mat
+% HC = 1:32;
+% ISSD = 33:56;
+
+VN = BNAYeo(find(BNAYeo(:,2)==1),1);
+SMN = BNAYeo(find(BNAYeo(:,2)==2),1);
+DAN = BNAYeo(find(BNAYeo(:,2)==3),1);
+VAN = BNAYeo(find(BNAYeo(:,2)==4),1);
+LN = BNAYeo(find(BNAYeo(:,2)==5),1);
+FPN = BNAYeo(find(BNAYeo(:,2)==6),1);
+DMN = BNAYeo(find(BNAYeo(:,2)==7),1);
+SBN = BNAYeo(find(BNAYeo(:,2)==0),1);
+FBN = [1:68,219:246]';
+
+network = {VN,SMN,DAN,VAN,LN,FPN,DMN,SBN,FBN};
+
+for i = 1:size(FC,1);
+ for j = 1:8;
+      for n = j+1:9;
+         net1 = network{1,j};
+         net2 = network{1,n};
+         FC_data = squeeze(FC(i,net1,net2));
+%          FC_data2 = squeeze(FC(i,net2,net1));
+         FC_data = reshape(FC_data,1,size(FC_data,1)*size(FC_data,2));
+%          FC_data2 = reshape(FC_data2,1,size(FC_data2,1)*size(FC_data2,2));
+%          FC_data = [FC_data1,FC_data2];
+         SC_data = squeeze(SC(i,net1,net2));
+%          SC_data2 = squeeze(SC(i,net2,net1));
+         SC_data = reshape(SC_data,1,size(SC_data,1)*size(SC_data,2));
+%          SC_data2 = reshape(SC_data2,1,size(SC_data2,1)*size(SC_data2,2));
+%          SC_data = [SC_data1,SC_data2];
+%          SC_data = reshape(SC_data,1,size(SC_data,1)*size(SC_data,2));
+         mask = find(SC_data ==0);
+         SC_data(mask)=[];
+         FC_data(mask)=[];
+        if length(SC_data)>2;
+       SC_data = zscore(SC_data);
+       Inter_network_SFC(i,j,n) = corr(SC_data',FC_data');
+        else
+       Inter_network_SFC(i,j,n) = 0;
+      end
+ end
+ end   
+end
+
+for i = 1:1:size(FC,1) 
+Inter_Net(i,:) = [squeeze(Inter_network_SFC(i,1,:))',squeeze(Inter_network_SFC(i,2,:))',squeeze(Inter_network_SFC(i,3,:))',squeeze(Inter_network_SFC(i,4,:))',squeeze(Inter_network_SFC(i,5,:))',squeeze(Inter_network_SFC(i,6,:))',squeeze(Inter_network_SFC(i,7,:))',squeeze(Inter_network_SFC(i,8,:))']
+end
+
+[x, y] = find(all(Inter_Net == 0,1));
+Inter_Net(:,y) = []%姣忎竴鍒椾唬琛╪etwork1-2锛?1-3...8;2-3....8;......7-8
+
+% Inter_Net(find(isnan(Inter_Net)==1))=0;
+
+ dummy=Inter_Net;
+ dummy(20,:)=[];
+group(20,:)=[];
+site(20,:)=[];
+sex(20,:)=[];
+age(20,:)=[];
+
+for region=1:size(dummy,2);
+  tbl = table(age,sex,group,site,dummy(:,region));
+  tbl.sex = categorical(tbl.sex);
+  tbl.site = categorical(tbl.site);
+  tbl.group = categorical(tbl.group);
+  lm = fitlm(tbl,'Var5~age*sex*site+group');
+  mytstat_246(region)=lm.Coefficients{4,3};
+  mypval_246(region)=lm.Coefficients{4,4};
+end
+
+% for region=1:size(dummy,2);
+%   tbl = table(age,sex,group,dummy(:,region));
+%   tbl.sex = categorical(tbl.sex);
+% %   tbl.site = categorical(tbl.site);
+%   tbl.group = categorical(tbl.group);
+%   lm = fitlm(tbl,'Var4~age*sex+group');
+%   mytstat_246(region)=lm.Coefficients{4,3};
+%   mypval_246(region)=lm.Coefficients{4,4};
+% end
+
+mytstat_246=transpose(mytstat_246);
+mypval_246=transpose(mypval_246);
+pvalue_fdr_246 = mafdr(mypval_246,'BHFDR',1); % FDR corrected p-values
+sigregs_246=find(pvalue_fdr_246<0.05) % list of the statistically significant regions
+
+Sig_Roi_Index = find(mypval_246<0.05);
+Sig_t_value = mytstat_246(Sig_Roi_Index,1);
